@@ -133,9 +133,10 @@ if __name__ == "__main__":
     model.to(device)
 
     import polygons
-    ptensor =  [torch.tensor(polygons.triangle) + torch.tensor([0.75, 0]), torch.tensor(polygons.triangle) + torch.tensor([-0.7, 0])]
-    ptensor = [tensor.to(device) for tensor in ptensor]
-    ground_truth = lambda x: polygons.inside_any(ptensor, x)
+    polies =  [torch.tensor(polygons.triangle) + torch.tensor([0.75, 0]), torch.tensor(polygons.triangle) + torch.tensor([-0.7, 0])]
+    polies = [tensor.detach().to(device) for tensor in polies]
+    ps = polygons.InsidePolygons(polies)
+    ground_truth = lambda x: ps.inside(x)
 
     # Display once first
     rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing='ij')
