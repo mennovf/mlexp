@@ -122,31 +122,18 @@ def polygon(poly, x):
     fro = poly
     to = poly.roll(-1, dims=0)
     
-    print("fro", fro)
-    print("to", to)
-    v0 = to - fro
+    v1 = (to - fro).unsqueeze(0)
     x = x.unsqueeze(-2)
-    fro = fro.unsqueeze(-3)
-    v1 = x - fro
-    print("v0", v0)
-    print("v1", v1)
+    fro = fro.unsqueeze(0)
+    
+    t1 = ( x - fro).select(-1, 1) / v1.select(-1, 1)
+    t0 = (x - fro - v1*t1.unsqueeze(-1)).select(-1, 0)
 
-    x0 = v0.select(-1, 0)
-    y0 = v0.select(-1, 1)
-    x1 = v1.select(-1, 0)
-    y1 = v1.select(-1, 1)
-    
-    print("x0", x0)
-    print("y0", y0)
-    print("x1", x1)
-    print("y1", y1)
-    
-    cps = x0*y1 - x1*y0
-    inside = (cps > 0).all(dim=-1, keepdim=True)
+    hits = (t0 > 0) * (t1 > 0) * (t1 <= 1)
+
+    nhits = hits.sum(dim=-1, keepdim=True)
+    inside = nhits.remainder(2) == 1
     y = torch.cat([inside, inside.logical_not()], dim=-1).to(torch.float32)
-    print("cps", cps)
-    print(inside)
-    print(y)
     return y
 
 if __name__ == "__main__":
