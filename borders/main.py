@@ -121,34 +121,39 @@ def ground_truth(x):
 if __name__ == "__main__":
     import time
     device = 'cuda'
-    H, W = 240, 320
-    H, W = 64, 96
-    B = 4
+    H, W = 320, 480
+    B = 1024
     fig, ax, im, bg, quit_flag = make_viewer(H, W)
 
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
     
-    model = Model(2*10, 1)
+    model = Model(2*100, 1)
     model.to(device)
 
     iteration = 0
+    optimizer = torch.optim.AdamW(model.parameters())
+    model.train()
     while plt.fignum_exists(fig.number) and not quit_flag["q"]:
-        # --- your loop: produce a 2-channel tensor 't' of shape (H,W,2) or (2,H,W) ---
+        optimizer.zero_grad()
         x = torch.rand(B, 2, device=device) * 2 - 1
         y = ground_truth(x)
         
-        print(x, y)
-        logits, loss = model(x, y)
+        _, loss = model(x, y)
+        loss.backward()
+        optimizer.step()
+        
         print(f"Iteration={iteration}, loss={loss:.4}")
 
         # Validation
-        rr, cc = torch.meshgrid(torch.linspace(-1, 1, H, device=device), torch.linspace(-1, 1, W, device=device))
-        x = torch.stack([rr, cc], dim=-1)
-        logits, _ = model(x)
-        probs = F.softmax(logits, dim=-1)
-        print("probs", probs)
-        img = tensor_to_rgb_numpy(probs, eps=1e-2)
-        blit_update(fig, ax, im, bg, img)
-        time.sleep(1)
+        if iteration % 10 == 0:
+            model.eval()
+            rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device))
+            x = torch.stack([rr, cc], dim=-1)
+            logits, _ = model(x)
+            probs = F.softmax(logits, dim=-1)
+            img = tensor_to_rgb_numpy(probs, eps=1e-2)
+            blit_update(fig, ax, im, bg, img)
+            model.train()
+        iteration += 1;
 
