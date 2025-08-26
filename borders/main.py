@@ -25,7 +25,7 @@ class Model(nn.Module):
         self.layers = nn.Sequential(*[
             Layer(2, n_hidden),
             *[Layer(n_hidden, n_hidden) for _ in range(n_layers)],
-            Layer(n_hidden, 2)
+            nn.Linear(n_hidden, 2)
         ])
 
     def forward(self, x, y = None):
@@ -37,6 +37,7 @@ class Model(nn.Module):
         loss = None
         if y is not None:
             loss = F.cross_entropy(logits, y)
+            #print("crossing gvies", logits, y, loss)
 
         return logits, loss
         
@@ -149,26 +150,28 @@ if __name__ == "__main__":
     model = Model(2*100, 1)
     model.to(device)
 
-    iteration = 0
-    optimizer = torch.optim.AdamW(model.parameters())
-    model.train()
-
+    import polygons
+    ptensor =  torch.tensor(polygons.triangle, device=device).detach()
+    ground_truth = lambda x: polygon(ptensor, x)
 
     # Display once first
-    import polygons
-    rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device))
-    x = torch.stack([cc, rr], dim=-1)
-    ref = polygon(torch.tensor(polygons.triangle, device=device), x)
+    rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing='ij')
+    x = torch.stack([cc, rr], dim=-1).detach()
+    ref = ground_truth(x)
     img = tensor_to_rgb_numpy(ref, eps=1e-2)
     blit_update(fig, ax, im, bg, img)
     time.sleep(5)
     
+    iteration = 0
+    optimizer = torch.optim.AdamW(model.parameters())
+    model.train()
+    
     while plt.fignum_exists(fig.number) and not quit_flag["q"]:
         optimizer.zero_grad()
         x = torch.rand(B, 2, device=device) * 2 - 1
-        y = circle(x)
+        y = ground_truth(x)
         
-        _, loss = model(x, y)
+        pred, loss = model(x, y)
         loss.backward()
         optimizer.step()
         
@@ -177,8 +180,8 @@ if __name__ == "__main__":
         # Validation
         if iteration % 10 == 0:
             model.eval()
-            rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device))
-            x = torch.stack([rr, cc], dim=-1)
+            rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing="ij")
+            x = torch.stack([cc, rr], dim=-1)
             logits, _ = model(x)
             probs = F.softmax(logits, dim=-1)
             img = tensor_to_rgb_numpy(probs, eps=1e-2)
