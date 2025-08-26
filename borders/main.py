@@ -119,24 +119,6 @@ def circle(x):
     
     return y
 
-def polygon(poly, x):
-    fro = poly
-    to = poly.roll(-1, dims=0)
-    
-    v1 = (to - fro).unsqueeze(0)
-    x = x.unsqueeze(-2)
-    fro = fro.unsqueeze(0)
-    
-    t1 = ( x - fro).select(-1, 1) / v1.select(-1, 1)
-    t0 = (x - fro - v1*t1.unsqueeze(-1)).select(-1, 0)
-
-    hits = (t0 > 0) * (t1 > 0) * (t1 <= 1)
-
-    nhits = hits.sum(dim=-1, keepdim=True)
-    inside = nhits.remainder(2) == 1
-    y = torch.cat([inside, inside.logical_not()], dim=-1).to(torch.float32)
-    return y
-
 if __name__ == "__main__":
     import time
     device = 'cuda'
@@ -151,8 +133,10 @@ if __name__ == "__main__":
     model.to(device)
 
     import polygons
-    ptensor =  torch.tensor(polygons.triangle, device=device).detach()
-    ground_truth = lambda x: polygon(ptensor, x)
+    ptensor =  torch.tensor([polygons.triangle, polygons.triangle]).detach()
+    ptensor = ptensor + torch.tensor([[0, 0], [-1, 0]]).unsqueeze(-2)
+    ptensor = ptensor.to(device)
+    ground_truth = lambda x: polygons.inside_any(ptensor, x)
 
     # Display once first
     rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing='ij')

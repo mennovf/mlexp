@@ -1,3 +1,37 @@
+import torch
+
+def unsqueeze_n(x, at, n):
+    for _ in range(n):
+        x = x.unsqueeze(at)
+    return x
+
+def inside_any(polies, x):
+    fro = polies
+    to = polies.roll(-1, dims=-2)
+    
+    v1 = (to - fro).unsqueeze(-3)
+    x = x.unsqueeze(-2)
+    fro = fro.unsqueeze(-3)
+    #fro = unsqueeze_n(fro, -3, len(x.size()))
+
+    print("x", x.size(), x)
+    print("fro", fro.size(), fro)
+    
+    t1 = ( x - fro).select(-1, 1) / v1.select(-1, 1)
+    t0 = (x - fro - v1*t1.unsqueeze(-1)).select(-1, 0)
+
+    hits = (t0 > 0) * (t1 > 0) * (t1 <= 1)
+
+    nhits = hits.sum(dim=-1)
+    inside = nhits.remainder(2) == 1
+    any_inside = inside.any().unsqueeze(0)
+    y = torch.cat([any_inside, any_inside.logical_not()], dim=-1).to(torch.float32)
+    return y
+
+def inside(poly, x):
+    return inside_any(poly.squeeze(0), x)
+
+
 triangle = [
     [-0.5, 0.5],
     [-0.5, -0.5],
