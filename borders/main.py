@@ -102,7 +102,7 @@ def blit_update(fig, ax, im, bg, img: np.ndarray):
     fig.canvas.flush_events()
     plt.pause(0.001)  # let GUI breathe
 
-def ground_truth(x):
+def circle(x):
     # x.shape() == (B, 2)
     
     d2 = x.square().sum(dim=-1)
@@ -116,6 +116,37 @@ def ground_truth(x):
         outside.unsqueeze(-1)
     ], dim=-1).to(torch.float32)
     
+    return y
+
+def polygon(poly, x):
+    fro = poly
+    to = poly.roll(-1, dims=0)
+    
+    print("fro", fro)
+    print("to", to)
+    v0 = to - fro
+    x = x.unsqueeze(-2)
+    fro = fro.unsqueeze(-3)
+    v1 = x - fro
+    print("v0", v0)
+    print("v1", v1)
+
+    x0 = v0.select(-1, 0)
+    y0 = v0.select(-1, 1)
+    x1 = v1.select(-1, 0)
+    y1 = v1.select(-1, 1)
+    
+    print("x0", x0)
+    print("y0", y0)
+    print("x1", x1)
+    print("y1", y1)
+    
+    cps = x0*y1 - x1*y0
+    inside = (cps > 0).all(dim=-1, keepdim=True)
+    y = torch.cat([inside, inside.logical_not()], dim=-1).to(torch.float32)
+    print("cps", cps)
+    print(inside)
+    print(y)
     return y
 
 if __name__ == "__main__":
@@ -134,10 +165,21 @@ if __name__ == "__main__":
     iteration = 0
     optimizer = torch.optim.AdamW(model.parameters())
     model.train()
+
+
+    # Display once first
+    import polygons
+    rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device))
+    x = torch.stack([cc, rr], dim=-1)
+    ref = polygon(torch.tensor(polygons.triangle, device=device), x)
+    img = tensor_to_rgb_numpy(ref, eps=1e-2)
+    blit_update(fig, ax, im, bg, img)
+    time.sleep(5)
+    
     while plt.fignum_exists(fig.number) and not quit_flag["q"]:
         optimizer.zero_grad()
         x = torch.rand(B, 2, device=device) * 2 - 1
-        y = ground_truth(x)
+        y = circle(x)
         
         _, loss = model(x, y)
         loss.backward()
