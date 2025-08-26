@@ -133,9 +133,8 @@ if __name__ == "__main__":
     model.to(device)
 
     import polygons
-    ptensor =  torch.tensor([polygons.triangle, polygons.triangle]).detach()
-    ptensor = ptensor + torch.tensor([[0, 0], [-1, 0]]).unsqueeze(-2)
-    ptensor = ptensor.to(device)
+    ptensor =  [torch.tensor(polygons.triangle) + torch.tensor([0.75, 0]), torch.tensor(polygons.triangle) + torch.tensor([-0.7, 0])]
+    ptensor = [tensor.to(device) for tensor in ptensor]
     ground_truth = lambda x: polygons.inside_any(ptensor, x)
 
     # Display once first
