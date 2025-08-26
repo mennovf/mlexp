@@ -3,7 +3,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from torch.distributions import multinomial
-
+import math
 
 
 class Layer(nn.Module):
@@ -45,36 +45,7 @@ class Model(nn.Module):
 
 
 import matplotlib.pyplot as plt
-
-def tensor_to_rgb_numpy(t: torch.Tensor, eps: float = 1e-3) -> np.ndarray:
-    """
-    Map a 2-channel tensor to RGB:
-      red   if p0 > p1 + eps
-      green if p1 > p0 + eps
-      blue  otherwise (≈ equal)
-    Supports (H,W,2) or (2,H,W). Returns uint8 (H,W,3).
-    """
-    if t.ndim != 3:
-        raise ValueError(f"expected 3D tensor, got {t.shape}")
-    if t.shape[-1] == 2:
-        hw2 = t
-    elif t.shape[0] == 2:
-        hw2 = t.permute(1, 2, 0)
-    else:
-        raise ValueError(f"last or first dim must be 2, got {t.shape}")
-
-    hw2 = hw2.detach().to(torch.float32).cpu()
-    p0, p1 = hw2[..., 0], hw2[..., 1]
-    red   = p0 > (p1 + eps)
-    green = p1 > (p0 + eps)
-    blue  = ~(red | green)
-
-    H, W = p0.shape
-    img = np.zeros((H, W, 3), dtype=np.uint8)
-    img[red.numpy()]   = (255, 0, 0)
-    img[green.numpy()] = (0, 255, 0)
-    img[blue.numpy()]  = (0, 0, 255)
-    return img
+import show
 
 def make_viewer(H: int, W: int, title="PyTorch 2D tensor viewer"):
     plt.ion()
@@ -118,39 +89,45 @@ def circle(x):
     ], dim=-1).to(torch.float32)
     
     return y
+    
 
 if __name__ == "__main__":
-    import time
+    import time, os, sys
     device = 'cuda'
     H, W = 320, 480
-    B = 1024
+    B = 512
     fig, ax, im, bg, quit_flag = make_viewer(H, W)
 
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
+    torch.set_float32_matmul_precision("medium")
     
-    model = Model(2*100, 1)
+    model = Model(1024, 4)
     model.to(device)
 
     import polygons
     polies =  [torch.tensor(polygons.triangle) + torch.tensor([0.75, 0]), torch.tensor(polygons.triangle) + torch.tensor([-0.7, 0])]
+    polies = polygons.name()
     polies = [tensor.detach().to(device) for tensor in polies]
     ps = polygons.InsidePolygons(polies)
     ground_truth = lambda x: ps.inside(x)
 
     # Display once first
-    rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing='ij')
-    x = torch.stack([cc, rr], dim=-1).detach()
-    ref = ground_truth(x)
-    img = tensor_to_rgb_numpy(ref, eps=1e-2)
-    blit_update(fig, ax, im, bg, img)
-    time.sleep(5)
+    rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing="ij")
+    windowx = torch.stack([cc, rr], dim=-1).detach().to(device)
+    
+    if os.environ.get("SHOW", False):
+        ref = ground_truth(windowx)
+        img = show.tensor_to_rgb_numpy(ref, eps=1e-2)
+        blit_update(fig, ax, im, bg, img)
+        time.sleep(5)
     
     iteration = 0
-    optimizer = torch.optim.AdamW(model.parameters())
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
     model.train()
     
     while plt.fignum_exists(fig.number) and not quit_flag["q"]:
+        start = time.time()
         optimizer.zero_grad()
         x = torch.rand(B, 2, device=device) * 2 - 1
         y = ground_truth(x)
@@ -158,17 +135,16 @@ if __name__ == "__main__":
         pred, loss = model(x, y)
         loss.backward()
         optimizer.step()
+        end = time.time()
         
-        print(f"Iteration={iteration}, loss={loss:.4}")
+        print(f"Iteration={iteration}, dt={(end - start) * 1000:.3f}ms, loss={loss:.4}")
 
         # Validation
-        if iteration % 10 == 0:
+        if iteration % 20 == 0:
             model.eval()
-            rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing="ij")
-            x = torch.stack([cc, rr], dim=-1)
-            logits, _ = model(x)
+            logits, _ = model(windowx)
             probs = F.softmax(logits, dim=-1)
-            img = tensor_to_rgb_numpy(probs, eps=1e-2)
+            img = show.tensor_to_rgb_numpy(probs, eps=1e-2)
             blit_update(fig, ax, im, bg, img)
             model.train()
         iteration += 1;
