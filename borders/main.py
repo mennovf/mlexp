@@ -106,8 +106,7 @@ if __name__ == "__main__":
     model.to(device)
 
     import polygons
-    polies =  [torch.tensor(polygons.triangle) + torch.tensor([0.75, 0]), torch.tensor(polygons.triangle) + torch.tensor([-0.7, 0])]
-    polies = polygons.name()
+    polies = polygons.smiley()
     polies = [tensor.detach().to(device) for tensor in polies]
     ps = polygons.InsidePolygons(polies)
     ground_truth = lambda x: ps.inside(x)
@@ -129,7 +128,8 @@ if __name__ == "__main__":
     while plt.fignum_exists(fig.number) and not quit_flag["q"]:
         start = time.time()
         optimizer.zero_grad()
-        x = (torch.rand(B, 2, device=device) - 0.5) * torch.tensor([2, 0.5], device=device)
+        #x = (torch.rand(B, 2, device=device) - 0.5) * torch.tensor([2, 0.5], device=device)
+        x = torch.rand(B, 2, device=device)*2 - 1
         y = ground_truth(x)
         
         pred, loss = model(x, y)
