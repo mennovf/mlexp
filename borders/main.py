@@ -95,14 +95,14 @@ if __name__ == "__main__":
     import time, os, sys
     device = 'cuda'
     H, W = 320, 480
-    B = 512
+    B = 4096
     fig, ax, im, bg, quit_flag = make_viewer(H, W)
 
     torch.manual_seed(0)
     torch.cuda.manual_seed(0)
     torch.set_float32_matmul_precision("medium")
     
-    model = Model(1024, 4)
+    model = Model(128, 4)
     model.to(device)
 
     import polygons
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     ground_truth = lambda x: ps.inside(x)
 
     # Display once first
-    rr, cc = torch.meshgrid(torch.linspace(-2, 2, H, device=device), torch.linspace(-2*W/H, 2*W/H, W, device=device), indexing="ij")
+    rr, cc = torch.meshgrid(torch.linspace(-1, 1, H, device=device), torch.linspace(-1*W/H, 1*W/H, W, device=device), indexing="ij")
     windowx = torch.stack([cc, rr], dim=-1).detach().to(device)
     
     if os.environ.get("SHOW", False):
@@ -123,13 +123,13 @@ if __name__ == "__main__":
         time.sleep(5)
     
     iteration = 0
-    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-4)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=1e-3)
     model.train()
     
     while plt.fignum_exists(fig.number) and not quit_flag["q"]:
         start = time.time()
         optimizer.zero_grad()
-        x = torch.rand(B, 2, device=device) * 2 - 1
+        x = (torch.rand(B, 2, device=device) - 0.5) * torch.tensor([2, 0.5], device=device)
         y = ground_truth(x)
         
         pred, loss = model(x, y)
@@ -142,10 +142,11 @@ if __name__ == "__main__":
         # Validation
         if iteration % 20 == 0:
             model.eval()
-            logits, _ = model(windowx)
-            probs = F.softmax(logits, dim=-1)
-            img = show.tensor_to_rgb_numpy(probs, eps=1e-2)
-            blit_update(fig, ax, im, bg, img)
-            model.train()
+            with torch.no_grad():
+                logits, _ = model(windowx)
+                probs = F.softmax(logits, dim=-1)
+                img = show.tensor_to_rgb_numpy(probs, eps=1e-2)
+                blit_update(fig, ax, im, bg, img)
+                model.train()
         iteration += 1;
 
