@@ -3,8 +3,9 @@ such as display and inputs so I can actually learn something.
 
 ## Borders
 Small Neural Network to learn a border. I.e. it classifies a point $P = (x, y)$ as being either inside or outside.
+
 $$
-(\operatorname{softmax} \circ f)\left(
+(\textrm{softmax} \circ f)\left(
 \begin{bmatrix}
 x \\
 y
